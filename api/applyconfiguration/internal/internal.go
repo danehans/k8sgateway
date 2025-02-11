@@ -132,6 +132,13 @@ var schemaYAML = typed.YAMLObject(`types:
         elementType:
           namedType: __untyped_deduced_
         elementRelationship: separable
+- name: com.github.kgateway-dev.kgateway.v2.api.v1alpha1.EndpointPickerExtension
+  map:
+    fields:
+    - name: poolRef
+      type:
+        namedType: com.github.kgateway-dev.kgateway.v2.api.v1alpha1.InferencePoolObjRef
+      default: {}
 - name: com.github.kgateway-dev.kgateway.v2.api.v1alpha1.EnvoyBootstrap
   map:
     fields:
@@ -269,6 +276,28 @@ var schemaYAML = typed.YAMLObject(`types:
     - name: tag
       type:
         scalar: string
+- name: com.github.kgateway-dev.kgateway.v2.api.v1alpha1.InferenceExtension
+  map:
+    fields:
+    - name: endpointPickers
+      type:
+        list:
+          elementType:
+            namedType: com.github.kgateway-dev.kgateway.v2.api.v1alpha1.EndpointPickerExtension
+          elementRelationship: atomic
+- name: com.github.kgateway-dev.kgateway.v2.api.v1alpha1.InferencePoolObjRef
+  map:
+    fields:
+    - name: group
+      type:
+        scalar: string
+    - name: kind
+      type:
+        scalar: string
+    - name: name
+      type:
+        scalar: string
+      default: ""
 - name: com.github.kgateway-dev.kgateway.v2.api.v1alpha1.IstioContainer
   map:
     fields:
@@ -320,6 +349,9 @@ var schemaYAML = typed.YAMLObject(`types:
     - name: floatingUserId
       type:
         scalar: boolean
+    - name: inferenceExtension
+      type:
+        namedType: com.github.kgateway-dev.kgateway.v2.api.v1alpha1.InferenceExtension
     - name: istio
       type:
         namedType: com.github.kgateway-dev.kgateway.v2.api.v1alpha1.IstioIntegration

@@ -106,6 +106,14 @@ type KubernetesProxyConfig struct {
 	// +kubebuilder:validation:Optional
 	AiExtension *AiExtension `json:"aiExtension,omitempty"`
 
+	// InferenceExtension defines the desired state of the Gateway API inference extension.
+	// For additional details, see: https://gateway-api-inference-extension.sigs.k8s.io/.
+	//
+	// InferenceExtension can only be specified when GatewayParameters is referenced by a Gateway.
+	//
+	// +kubebuilder:validation:Optional
+	InferenceExtension *InferenceExtension `json:"inferenceExtension,omitempty"`
+
 	// Used to unset the `runAsUser` values in security contexts.
 	FloatingUserId *bool `json:"floatingUserId,omitempty"`
 }
@@ -610,6 +618,52 @@ type AiExtension struct {
 	//       metadataKey: "principal:iss"
 	// ```
 	Stats *AiExtensionStats `json:"stats,omitempty"`
+}
+
+// InferenceExtension defines the desired state of the Gateway API inference extension.
+// For additional details, see: https://gateway-api-inference-extension.sigs.k8s.io/.
+type InferenceExtension struct {
+	// EndpointPickers defines a list of EndpointPicker extensions.
+	//
+	// +kubebuilder:validation:MaxItems=8
+	EndpointPickers []EndpointPickerExtension `json:"endpointPickers"`
+}
+
+// EndpointPickerExtension defines the desired state of an EndpointPicker extension.
+type EndpointPickerExtension struct {
+	// PoolRef is a reference to an InferencePool associated to the Endpoint Picker extension.
+	// The referenced InferencePool must exist in the same namespace as the Gateway that references
+	// this GatewayParameters.
+	//
+	// +kubebuilder:validation:Required
+	PoolRef InferencePoolObjRef `json:"poolRef"`
+}
+
+// InferencePoolObjRef is a reference to an InferencePool.
+type InferencePoolObjRef struct {
+	// Group is the group of the referent.
+	//
+	// +optional
+	// +kubebuilder:default="inference.networking.x-k8s.io"
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Pattern=`^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$`
+	Group string `json:"group,omitempty"`
+
+	// Kind is kind of the referent.
+	//
+	// +optional
+	// +kubebuilder:default="InferencePool"
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=63
+	// +kubebuilder:validation:Pattern=`^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$`
+	Kind string `json:"kind,omitempty"`
+
+	// Name is the name of the referent.
+	//
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +kubebuilder:validation:Required
+	Name string `json:"name"`
 }
 
 func (in *AiExtension) GetEnabled() *bool {

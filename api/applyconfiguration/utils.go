@@ -29,6 +29,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &apiv1alpha1.DirectResponseApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("DirectResponseSpec"):
 		return &apiv1alpha1.DirectResponseSpecApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("EndpointPickerExtension"):
+		return &apiv1alpha1.EndpointPickerExtensionApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("EnvoyBootstrap"):
 		return &apiv1alpha1.EnvoyBootstrapApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("EnvoyContainer"):
@@ -47,6 +49,10 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &apiv1alpha1.HttpListenerPolicySpecApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("Image"):
 		return &apiv1alpha1.ImageApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("InferenceExtension"):
+		return &apiv1alpha1.InferenceExtensionApplyConfiguration{}
+	case v1alpha1.SchemeGroupVersion.WithKind("InferencePoolObjRef"):
+		return &apiv1alpha1.InferencePoolObjRefApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("IstioContainer"):
 		return &apiv1alpha1.IstioContainerApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("IstioIntegration"):

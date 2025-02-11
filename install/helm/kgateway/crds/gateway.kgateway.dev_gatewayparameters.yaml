@@ -406,6 +406,39 @@ spec:
                     type: object
                   floatingUserId:
                     type: boolean
+                  inferenceExtension:
+                    properties:
+                      endpointPickers:
+                        items:
+                          properties:
+                            poolRef:
+                              properties:
+                                group:
+                                  default: inference.networking.x-k8s.io
+                                  maxLength: 253
+                                  pattern: ^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                                  type: string
+                                kind:
+                                  default: InferencePool
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$
+                                  type: string
+                                name:
+                                  maxLength: 253
+                                  minLength: 1
+                                  type: string
+                              required:
+                              - name
+                              type: object
+                          required:
+                          - poolRef
+                          type: object
+                        maxItems: 8
+                        type: array
+                    required:
+                    - endpointPickers
+                    type: object
                   istio:
                     properties:
                       customSidecars:

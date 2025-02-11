@@ -24,6 +24,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/kgateway-dev/kgateway/v2/api/v1alpha1.DirectResponseList":         schema_kgateway_v2_api_v1alpha1_DirectResponseList(ref),
 		"github.com/kgateway-dev/kgateway/v2/api/v1alpha1.DirectResponseSpec":         schema_kgateway_v2_api_v1alpha1_DirectResponseSpec(ref),
 		"github.com/kgateway-dev/kgateway/v2/api/v1alpha1.DirectResponseStatus":       schema_kgateway_v2_api_v1alpha1_DirectResponseStatus(ref),
+		"github.com/kgateway-dev/kgateway/v2/api/v1alpha1.EndpointPickerExtension":    schema_kgateway_v2_api_v1alpha1_EndpointPickerExtension(ref),
 		"github.com/kgateway-dev/kgateway/v2/api/v1alpha1.EnvoyBootstrap":             schema_kgateway_v2_api_v1alpha1_EnvoyBootstrap(ref),
 		"github.com/kgateway-dev/kgateway/v2/api/v1alpha1.EnvoyContainer":             schema_kgateway_v2_api_v1alpha1_EnvoyContainer(ref),
 		"github.com/kgateway-dev/kgateway/v2/api/v1alpha1.GatewayParameters":          schema_kgateway_v2_api_v1alpha1_GatewayParameters(ref),
@@ -36,6 +37,8 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/kgateway-dev/kgateway/v2/api/v1alpha1.HttpListenerPolicyList":     schema_kgateway_v2_api_v1alpha1_HttpListenerPolicyList(ref),
 		"github.com/kgateway-dev/kgateway/v2/api/v1alpha1.HttpListenerPolicySpec":     schema_kgateway_v2_api_v1alpha1_HttpListenerPolicySpec(ref),
 		"github.com/kgateway-dev/kgateway/v2/api/v1alpha1.Image":                      schema_kgateway_v2_api_v1alpha1_Image(ref),
+		"github.com/kgateway-dev/kgateway/v2/api/v1alpha1.InferenceExtension":         schema_kgateway_v2_api_v1alpha1_InferenceExtension(ref),
+		"github.com/kgateway-dev/kgateway/v2/api/v1alpha1.InferencePoolObjRef":        schema_kgateway_v2_api_v1alpha1_InferencePoolObjRef(ref),
 		"github.com/kgateway-dev/kgateway/v2/api/v1alpha1.IstioContainer":             schema_kgateway_v2_api_v1alpha1_IstioContainer(ref),
 		"github.com/kgateway-dev/kgateway/v2/api/v1alpha1.IstioIntegration":           schema_kgateway_v2_api_v1alpha1_IstioIntegration(ref),
 		"github.com/kgateway-dev/kgateway/v2/api/v1alpha1.KubernetesProxyConfig":      schema_kgateway_v2_api_v1alpha1_KubernetesProxyConfig(ref),
@@ -717,6 +720,29 @@ func schema_kgateway_v2_api_v1alpha1_DirectResponseStatus(ref common.ReferenceCa
 	}
 }
 
+func schema_kgateway_v2_api_v1alpha1_EndpointPickerExtension(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "EndpointPickerExtension defines the desired state of an EndpointPicker extension.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"poolRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "PoolRef is a reference to an InferencePool associated to the Endpoint Picker extension. The referenced InferencePool must exist in the same namespace as the Gateway that references this GatewayParameters.",
+							Default:     map[string]interface{}{},
+							Ref:         ref("github.com/kgateway-dev/kgateway/v2/api/v1alpha1.InferencePoolObjRef"),
+						},
+					},
+				},
+				Required: []string{"poolRef"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/kgateway-dev/kgateway/v2/api/v1alpha1.InferencePoolObjRef"},
+	}
+}
+
 func schema_kgateway_v2_api_v1alpha1_EnvoyBootstrap(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -1147,6 +1173,72 @@ func schema_kgateway_v2_api_v1alpha1_Image(ref common.ReferenceCallback) common.
 	}
 }
 
+func schema_kgateway_v2_api_v1alpha1_InferenceExtension(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "InferenceExtension defines the desired state of the Gateway API inference extension. For additional details, see: https://gateway-api-inference-extension.sigs.k8s.io/.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"endpointPickers": {
+						SchemaProps: spec.SchemaProps{
+							Description: "EndpointPickers defines a list of EndpointPicker extensions.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/kgateway-dev/kgateway/v2/api/v1alpha1.EndpointPickerExtension"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"endpointPickers"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/kgateway-dev/kgateway/v2/api/v1alpha1.EndpointPickerExtension"},
+	}
+}
+
+func schema_kgateway_v2_api_v1alpha1_InferencePoolObjRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "InferencePoolObjRef is a reference to an InferencePool.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"group": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Group is the group of the referent.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is kind of the referent.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name is the name of the referent.",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"name"},
+			},
+		},
+	}
+}
+
 func schema_kgateway_v2_api_v1alpha1_IstioContainer(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -1304,6 +1396,12 @@ func schema_kgateway_v2_api_v1alpha1_KubernetesProxyConfig(ref common.ReferenceC
 							Ref:         ref("github.com/kgateway-dev/kgateway/v2/api/v1alpha1.AiExtension"),
 						},
 					},
+					"inferenceExtension": {
+						SchemaProps: spec.SchemaProps{
+							Description: "InferenceExtension defines the desired state of the Gateway API inference extension. For additional details, see: https://gateway-api-inference-extension.sigs.k8s.io/.\n\nInferenceExtension can only be specified when GatewayParameters is referenced by a Gateway.",
+							Ref:         ref("github.com/kgateway-dev/kgateway/v2/api/v1alpha1.InferenceExtension"),
+						},
+					},
 					"floatingUserId": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Used to unset the `runAsUser` values in security contexts.",
@@ -1315,7 +1413,7 @@ func schema_kgateway_v2_api_v1alpha1_KubernetesProxyConfig(ref common.ReferenceC
 			},
 		},
 		Dependencies: []string{
-			"github.com/kgateway-dev/kgateway/v2/api/v1alpha1.AiExtension", "github.com/kgateway-dev/kgateway/v2/api/v1alpha1.EnvoyContainer", "github.com/kgateway-dev/kgateway/v2/api/v1alpha1.IstioIntegration", "github.com/kgateway-dev/kgateway/v2/api/v1alpha1.Pod", "github.com/kgateway-dev/kgateway/v2/api/v1alpha1.ProxyDeployment", "github.com/kgateway-dev/kgateway/v2/api/v1alpha1.SdsContainer", "github.com/kgateway-dev/kgateway/v2/api/v1alpha1.Service", "github.com/kgateway-dev/kgateway/v2/api/v1alpha1.ServiceAccount", "github.com/kgateway-dev/kgateway/v2/api/v1alpha1.StatsConfig"},
+			"github.com/kgateway-dev/kgateway/v2/api/v1alpha1.AiExtension", "github.com/kgateway-dev/kgateway/v2/api/v1alpha1.EnvoyContainer", "github.com/kgateway-dev/kgateway/v2/api/v1alpha1.InferenceExtension", "github.com/kgateway-dev/kgateway/v2/api/v1alpha1.IstioIntegration", "github.com/kgateway-dev/kgateway/v2/api/v1alpha1.Pod", "github.com/kgateway-dev/kgateway/v2/api/v1alpha1.ProxyDeployment", "github.com/kgateway-dev/kgateway/v2/api/v1alpha1.SdsContainer", "github.com/kgateway-dev/kgateway/v2/api/v1alpha1.Service", "github.com/kgateway-dev/kgateway/v2/api/v1alpha1.ServiceAccount", "github.com/kgateway-dev/kgateway/v2/api/v1alpha1.StatsConfig"},
 	}
 }
 
