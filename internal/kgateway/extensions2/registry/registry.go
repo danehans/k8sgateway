@@ -12,6 +12,7 @@ import (
 	"github.com/kgateway-dev/kgateway/v2/internal/kgateway/extensions2/plugins/destrule"
 	"github.com/kgateway-dev/kgateway/v2/internal/kgateway/extensions2/plugins/directresponse"
 	"github.com/kgateway-dev/kgateway/v2/internal/kgateway/extensions2/plugins/httplistenerpolicy"
+	"github.com/kgateway-dev/kgateway/v2/internal/kgateway/extensions2/plugins/inferenceextension/endpointpicker"
 	"github.com/kgateway-dev/kgateway/v2/internal/kgateway/extensions2/plugins/istio"
 	"github.com/kgateway-dev/kgateway/v2/internal/kgateway/extensions2/plugins/kubernetes"
 	"github.com/kgateway-dev/kgateway/v2/internal/kgateway/extensions2/plugins/listenerpolicy"
@@ -75,6 +76,7 @@ func Plugins(ctx context.Context, commoncol *common.CommonCollections) []extensi
 		destrule.NewPlugin(ctx, commoncol),
 		listenerpolicy.NewPlugin(ctx, commoncol),
 		httplistenerpolicy.NewPlugin(ctx, commoncol),
+		endpointpicker.NewPlugin(ctx, commoncol),
 	}
 }
 

@@ -179,6 +179,13 @@ func (in *KubernetesProxyConfig) GetAiExtension() *AiExtension {
 	return in.AiExtension
 }
 
+func (in *KubernetesProxyConfig) GetInferenceExtension() *InferenceExtension {
+	if in == nil {
+		return nil
+	}
+	return in.InferenceExtension
+}
+
 func (in *KubernetesProxyConfig) GetFloatingUserId() *bool {
 	if in == nil {
 		return nil
@@ -754,4 +761,14 @@ type EndpointPickerExtension struct {
 	//
 	// +kubebuilder:validation:Optional
 	Enabled *bool `json:"enabled,omitempty"`
+}
+
+func (ep *EndpointPickerExtension) IsEnabled() bool {
+	if ep == nil {
+		return false
+	}
+	if ep.Enabled == nil || *ep.Enabled == false {
+		return false
+	}
+	return true
 }
