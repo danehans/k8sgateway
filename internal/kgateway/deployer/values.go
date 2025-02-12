@@ -65,6 +65,9 @@ type helmGateway struct {
 	// AI extension values
 	AIExtension *helmAIExtension `json:"aiExtension,omitempty"`
 
+	// Gateway API Inference Extension values
+	InferenceExtension *helmInferenceExtension `json:"inferenceExtension,omitempty"`
+
 	// AWS values
 	Aws *helmAws `json:"aws,omitempty"`
 }
@@ -154,6 +157,10 @@ type helmAIExtension struct {
 	Env             []corev1.EnvVar              `json:"env,omitempty"`
 	Ports           []corev1.ContainerPort       `json:"ports,omitempty"`
 	Stats           []byte                       `json:"stats,omitempty"`
+}
+
+type helmInferenceExtension struct {
+	EndpointPickers []v1alpha1.EndpointPickerExtension `json:"endpointPickers"`
 }
 
 type helmAws struct {

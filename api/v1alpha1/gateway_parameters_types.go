@@ -181,6 +181,13 @@ func (in *KubernetesProxyConfig) GetAiExtension() *AiExtension {
 	return in.AiExtension
 }
 
+func (in *KubernetesProxyConfig) GetInferenceExtension() *InferenceExtension {
+	if in == nil {
+		return nil
+	}
+	return in.InferenceExtension
+}
+
 func (in *KubernetesProxyConfig) GetFloatingUserId() *bool {
 	if in == nil {
 		return nil
@@ -664,6 +671,18 @@ type InferencePoolObjRef struct {
 	// +kubebuilder:validation:MaxLength=253
 	// +kubebuilder:validation:Required
 	Name string `json:"name"`
+}
+
+func (in *InferenceExtension) GetEndpointPickerExtensions() []EndpointPickerExtension {
+	if in == nil {
+		return nil
+	}
+
+	if in.EndpointPickers == nil || len(in.EndpointPickers) == 0 {
+		return nil
+	}
+
+	return in.EndpointPickers
 }
 
 func (in *AiExtension) GetEnabled() *bool {

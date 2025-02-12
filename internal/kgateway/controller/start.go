@@ -98,8 +98,15 @@ func NewControllerBuilder(ctx context.Context, cfg StartConfig) (*ControllerBuil
 
 	scheme := DefaultScheme()
 
+	// Conditionally adding the Gateway API v1alpha2 scheme may no longer be needed since
+	// https://github.com/kgateway-dev/kgateway/pull/10413 adds this scheme to the default scheme.
 	// Extend the scheme if the TCPRoute CRD exists.
 	if err := glooschemes.AddGatewayV1A2Scheme(cfg.RestConfig, scheme); err != nil {
+		return nil, err
+	}
+
+	// Extend the scheme if the InferencePool CRD exists.
+	if err := glooschemes.AddInferExtV1A1Scheme(cfg.RestConfig, scheme); err != nil {
 		return nil, err
 	}
 
