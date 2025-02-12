@@ -299,6 +299,7 @@ func (d *Deployer) getValues(gw *api.Gateway, gwParam *v1alpha1.GatewayParameter
 	statsConfig := kubeProxyConfig.GetStats()
 	istioContainerConfig := istioConfig.GetIstioProxyContainer()
 	aiExtensionConfig := kubeProxyConfig.GetAiExtension()
+	inferExtConfig := kubeProxyConfig.GetInferenceExtension()
 
 	gateway := vals.Gateway
 
@@ -356,6 +357,12 @@ func (d *Deployer) getValues(gw *api.Gateway, gwParam *v1alpha1.GatewayParameter
 
 	// ai values
 	gateway.AIExtension, err = getAIExtensionValues(aiExtensionConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	// Gateway API inference extension values
+	gateway.InferenceExtension, err = getInferenceExtensionValues(inferExtConfig)
 	if err != nil {
 		return nil, err
 	}

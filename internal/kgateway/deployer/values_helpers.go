@@ -237,3 +237,13 @@ func getAIExtensionValues(config *v1alpha1.AiExtension) (*helmAIExtension, error
 		Stats:           byt,
 	}, nil
 }
+
+func getInferenceExtensionValues(config *v1alpha1.InferenceExtension) (*helmInferenceExtension, error) {
+	if config == nil {
+		return nil, nil
+	}
+
+	return &helmInferenceExtension{
+		EndpointPickers: config.GetEndpointPickerExtensions(),
+	}, nil
+}
