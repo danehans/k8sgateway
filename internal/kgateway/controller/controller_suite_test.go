@@ -17,6 +17,7 @@ import (
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/rest"
@@ -77,6 +78,9 @@ var _ = BeforeSuite(func() {
 	// Create a scheme and add both Gateway and InferencePool types.
 	scheme := schemes.GatewayScheme()
 	err := infextv1a1.AddToScheme(scheme)
+	Expect(err).NotTo(HaveOccurred())
+	// Required to deploy endpoint picker RBAC resources.
+	err = rbacv1.AddToScheme(scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	testEnv = &envtest.Environment{

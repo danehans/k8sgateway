@@ -3,6 +3,7 @@ package schemes
 import (
 	"fmt"
 
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -39,6 +40,10 @@ func AddInferExtV1A1Scheme(restConfig *rest.Config, scheme *runtime.Scheme) (boo
 	}
 
 	if exists {
+		// Required to deploy RBAC resources for endpoint picker extension.
+		if err := rbacv1.AddToScheme(scheme); err != nil {
+			return false, fmt.Errorf("error adding RBAC v1 to scheme: %w", err)
+		}
 		if err := infextv1a1.AddToScheme(scheme); err != nil {
 			return false, fmt.Errorf("error adding Gateway API Inference Extension v1alpha1 to scheme: %w", err)
 		}
