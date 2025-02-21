@@ -15,6 +15,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -1469,18 +1470,31 @@ var _ = Describe("Deployer", func() {
 			objs, err := d.GetEndpointPickerObjs(pool)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(objs).NotTo(BeEmpty(), "expected non-empty objects for endpoint picker deployment")
+			Expect(objs).To(HaveLen(5))
 
-			// Find the Deployment and Service objects.
+			// Find the child objects.
+			var sa *corev1.ServiceAccount
+			var role *rbacv1.Role
+			var rb *rbacv1.RoleBinding
 			var dep *appsv1.Deployment
 			var svc *corev1.Service
 			for _, obj := range objs {
 				switch t := obj.(type) {
+				case *corev1.ServiceAccount:
+					sa = t
+				case *rbacv1.Role:
+					role = t
+				case *rbacv1.RoleBinding:
+					rb = t
 				case *appsv1.Deployment:
 					dep = t
 				case *corev1.Service:
 					svc = t
 				}
 			}
+			Expect(sa).NotTo(BeNil(), "expected a ServiceAccount to be rendered")
+			Expect(role).NotTo(BeNil(), "expected a Role to be rendered")
+			Expect(rb).NotTo(BeNil(), "expected a RoleBinding to be rendered")
 			Expect(dep).NotTo(BeNil(), "expected a Deployment to be rendered")
 			Expect(svc).NotTo(BeNil(), "expected a Service to be rendered")
 
@@ -1499,8 +1513,25 @@ var _ = Describe("Deployer", func() {
 			// Validate that the rendered Deployment and Service have the expected names.
 			// (The template hardcodes the names to "inference-gateway-ext-proc".)
 			expectedName := fmt.Sprintf("%s-endpoint-picker", pool.Name)
+			Expect(sa.Name).To(Equal(expectedName))
+			Expect(role.Name).To(Equal(expectedName))
+			Expect(rb.Name).To(Equal(expectedName))
 			Expect(dep.Name).To(Equal(expectedName))
 			Expect(svc.Name).To(Equal(expectedName))
+
+			// Check the container args for the expected poolName.
+			Expect(dep.Spec.Template.Spec.Containers).To(HaveLen(1))
+			pickerContainer := dep.Spec.Template.Spec.Containers[0]
+			Expect(pickerContainer.Args).To(Equal([]string{
+				"-poolName",
+				pool.Name,
+				"-v",
+				"3",
+				"-grpcPort",
+				"9002",
+				"-grpcHealthPort",
+				"9003",
+			}))
 		})
 	})
 })
@@ -1508,6 +1539,11 @@ var _ = Describe("Deployer", func() {
 // initialize a fake controller-runtime client with the given list of objects
 func newFakeClientWithObjs(objs ...client.Object) client.Client {
 	scheme := schemes.GatewayScheme()
+
+	// Ensure the rbac types are registered.
+	if err := rbacv1.AddToScheme(scheme); err != nil {
+		panic(fmt.Sprintf("failed to add rbacv1 scheme: %v", err))
+	}
 
 	// Check if any object is an InferencePool, and add its scheme if needed.
 	for _, obj := range objs {

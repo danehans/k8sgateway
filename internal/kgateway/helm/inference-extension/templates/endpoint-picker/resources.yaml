@@ -1,4 +1,50 @@
 {{- $endpointPicker := .Values.inferenceExtension.endpointPicker }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Release.Name }}
+rules:
+- apiGroups: ["inference.networking.x-k8s.io"]
+  resources: ["inferencemodels"]
+  verbs: ["get", "watch", "list"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "watch", "list"]
+- apiGroups: ["inference.networking.x-k8s.io"]
+  resources: ["inferencepools"]
+  verbs: ["get", "watch", "list"]
+- apiGroups: ["discovery.k8s.io"]
+  resources: ["endpointslices"]
+  verbs: ["get", "watch", "list"]
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Release.Name }}
+subjects:
+- kind: ServiceAccount
+  name: {{ .Release.Name }}
+roleRef:
+  kind: Role
+  name: {{ .Release.Name }}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -17,16 +63,19 @@ spec:
       labels:
         app: {{ .Release.Name }}
     spec:
+      serviceAccountName: {{ .Release.Name }}
       containers:
       - name: endpoint-picker
         args:
+          - -poolName
+          - {{ $endpointPicker.poolName }}
           - -v
           - "3"
           - -grpcPort
           - "9002"
           - -grpcHealthPort
           - "9003"
-        image: "us-central1-docker.pkg.dev/k8s-staging-images/gateway-api-inference-extension/epp:main"
+        image: "registry.k8s.io/gateway-api-inference-extension/epp:v0.1.0"
         imagePullPolicy: IfNotPresent
         ports:
           - containerPort: 9002
