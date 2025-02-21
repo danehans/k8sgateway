@@ -82,6 +82,8 @@ type ControllerBuilder struct {
 	mgr         ctrl.Manager
 	isOurGw     func(gw *apiv1.Gateway) bool
 	settings    settings.Settings
+
+	inferExtCRDsExist bool
 }
 
 func NewControllerBuilder(ctx context.Context, cfg StartConfig) (*ControllerBuilder, error) {
@@ -100,6 +102,12 @@ func NewControllerBuilder(ctx context.Context, cfg StartConfig) (*ControllerBuil
 
 	// Extend the scheme if the TCPRoute CRD exists.
 	if err := glooschemes.AddGatewayV1A2Scheme(cfg.RestConfig, scheme); err != nil {
+		return nil, err
+	}
+
+	// Extend the scheme if the InferencePool CRD exists.
+	crdsExist, err := glooschemes.AddInferExtV1A1Scheme(cfg.RestConfig, scheme)
+	if err != nil {
 		return nil, err
 	}
 
@@ -165,11 +173,12 @@ func NewControllerBuilder(ctx context.Context, cfg StartConfig) (*ControllerBuil
 
 	setupLog.Info("starting controller builder", "GatewayClasses", sets.List(gwClasses))
 	return &ControllerBuilder{
-		proxySyncer: proxySyncer,
-		cfg:         cfg,
-		mgr:         mgr,
-		isOurGw:     isOurGw,
-		settings:    commoncol.Settings,
+		proxySyncer:       proxySyncer,
+		cfg:               cfg,
+		mgr:               mgr,
+		isOurGw:           isOurGw,
+		settings:          commoncol.Settings,
+		inferExtCRDsExist: crdsExist,
 	}, nil
 }
 
@@ -227,8 +236,20 @@ func (c *ControllerBuilder) Start(ctx context.Context) error {
 	}
 
 	if err := NewBaseGatewayController(ctx, gwCfg); err != nil {
-		setupLog.Error(err, "unable to create controller")
+		setupLog.Error(err, "unable to create gateway controller")
 		return err
+	}
+
+	if c.inferExtCRDsExist {
+		poolCfg := &InferencePoolConfig{
+			Mgr:            c.mgr,
+			ControllerName: wellknown.GatewayControllerName,
+			InferenceExt:   new(deployer.InferenceExtInfo),
+		}
+		if err := NewBaseInferencePoolController(ctx, poolCfg, &gwCfg); err != nil {
+			setupLog.Error(err, "unable to create inferencepool controller")
+			return err
+		}
 	}
 
 	return c.mgr.Start(ctx)

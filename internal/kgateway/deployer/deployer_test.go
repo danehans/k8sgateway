@@ -21,6 +21,7 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	infextv1a1 "sigs.k8s.io/gateway-api-inference-extension/api/v1alpha1"
 	api "sigs.k8s.io/gateway-api/apis/v1"
 
 	gw2_v1alpha1 "github.com/kgateway-dev/kgateway/v2/api/v1alpha1"
@@ -1439,12 +1440,88 @@ var _ = Describe("Deployer", func() {
 			}),
 		)
 	})
+
+	Context("Inference Extension endpoint picker", func() {
+		const defaultNamespace = "default"
+
+		It("should deploy endpoint picker resources for an InferencePool", func() {
+			// Create a fake InferencePool resource.
+			pool := &infextv1a1.InferencePool{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       wellknown.InferencePoolKind,
+					APIVersion: fmt.Sprintf("%s/%s", infextv1a1.GroupVersion.Group, infextv1a1.GroupVersion.Version),
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "pool1",
+					Namespace: defaultNamespace,
+					UID:       "pool-uid",
+				},
+			}
+
+			// Initialize a new deployer with InferenceExtension inputs.
+			d, err := deployer.NewDeployer(newFakeClientWithObjs(pool), &deployer.Inputs{
+				ControllerName:     wellknown.GatewayControllerName,
+				InferenceExtension: &deployer.InferenceExtInfo{},
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			// Get the endpoint picker objects for the InferencePool.
+			objs, err := d.GetEndpointPickerObjs(pool)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(objs).NotTo(BeEmpty(), "expected non-empty objects for endpoint picker deployment")
+
+			// Find the Deployment and Service objects.
+			var dep *appsv1.Deployment
+			var svc *corev1.Service
+			for _, obj := range objs {
+				switch t := obj.(type) {
+				case *appsv1.Deployment:
+					dep = t
+				case *corev1.Service:
+					svc = t
+				}
+			}
+			Expect(dep).NotTo(BeNil(), "expected a Deployment to be rendered")
+			Expect(svc).NotTo(BeNil(), "expected a Service to be rendered")
+
+			// Check that owner references are set on all rendered objects to the InferencePool.
+			for _, obj := range objs {
+				ownerRefs := obj.GetOwnerReferences()
+				Expect(ownerRefs).To(HaveLen(1))
+				ref := ownerRefs[0]
+				Expect(ref.Name).To(Equal(pool.Name))
+				Expect(ref.UID).To(Equal(pool.UID))
+				Expect(ref.Kind).To(Equal(pool.Kind))
+				Expect(ref.APIVersion).To(Equal(pool.APIVersion))
+				Expect(*ref.Controller).To(BeTrue())
+			}
+
+			// Validate that the rendered Deployment and Service have the expected names.
+			// (The template hardcodes the names to "inference-gateway-ext-proc".)
+			expectedName := fmt.Sprintf("%s-endpoint-picker", pool.Name)
+			Expect(dep.Name).To(Equal(expectedName))
+			Expect(svc.Name).To(Equal(expectedName))
+		})
+	})
 })
 
 // initialize a fake controller-runtime client with the given list of objects
 func newFakeClientWithObjs(objs ...client.Object) client.Client {
+	scheme := schemes.GatewayScheme()
+
+	// Check if any object is an InferencePool, and add its scheme if needed.
+	for _, obj := range objs {
+		gvk := obj.GetObjectKind().GroupVersionKind()
+		if gvk.Kind == wellknown.InferencePoolKind {
+			if err := infextv1a1.AddToScheme(scheme); err != nil {
+				panic(fmt.Sprintf("failed to add InferenceExtension scheme: %v", err))
+			}
+			break
+		}
+	}
+
 	return fake.NewClientBuilder().
-		WithScheme(schemes.GatewayScheme()).
+		WithScheme(scheme).
 		WithObjects(objs...).
 		Build()
 }
