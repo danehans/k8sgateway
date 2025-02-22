@@ -23,6 +23,7 @@ import (
 	istiokube "istio.io/istio/pkg/kube"
 	"istio.io/istio/pkg/kube/krt"
 	istiolog "istio.io/istio/pkg/log"
+	infextv1a1 "sigs.k8s.io/gateway-api-inference-extension/api/v1alpha1"
 	apiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/kgateway-dev/kgateway/v2/internal/kgateway/deployer"
@@ -82,8 +83,6 @@ type ControllerBuilder struct {
 	mgr         ctrl.Manager
 	isOurGw     func(gw *apiv1.Gateway) bool
 	settings    settings.Settings
-
-	inferExtCRDsExist bool
 }
 
 func NewControllerBuilder(ctx context.Context, cfg StartConfig) (*ControllerBuilder, error) {
@@ -106,8 +105,7 @@ func NewControllerBuilder(ctx context.Context, cfg StartConfig) (*ControllerBuil
 	}
 
 	// Extend the scheme if the InferencePool CRD exists.
-	crdsExist, err := glooschemes.AddInferExtV1A1Scheme(cfg.RestConfig, scheme)
-	if err != nil {
+	if _, err := glooschemes.AddInferExtV1A1Scheme(cfg.RestConfig, scheme); err != nil {
 		return nil, err
 	}
 
@@ -173,12 +171,11 @@ func NewControllerBuilder(ctx context.Context, cfg StartConfig) (*ControllerBuil
 
 	setupLog.Info("starting controller builder", "GatewayClasses", sets.List(gwClasses))
 	return &ControllerBuilder{
-		proxySyncer:       proxySyncer,
-		cfg:               cfg,
-		mgr:               mgr,
-		isOurGw:           isOurGw,
-		settings:          commoncol.Settings,
-		inferExtCRDsExist: crdsExist,
+		proxySyncer: proxySyncer,
+		cfg:         cfg,
+		mgr:         mgr,
+		isOurGw:     isOurGw,
+		settings:    commoncol.Settings,
 	}, nil
 }
 
@@ -240,7 +237,8 @@ func (c *ControllerBuilder) Start(ctx context.Context) error {
 		return err
 	}
 
-	if c.inferExtCRDsExist {
+	// Create the InferencePool controller if the inference extension API group is registered.
+	if c.mgr.GetScheme().IsGroupRegistered(infextv1a1.GroupVersion.Group) {
 		poolCfg := &InferencePoolConfig{
 			Mgr:            c.mgr,
 			ControllerName: wellknown.GatewayControllerName,
