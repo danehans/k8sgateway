@@ -27,10 +27,10 @@ func TestEndpointsFromInferencePool(t *testing.T) {
 	contextutils.SetFallbackLogger(logger.Sugar())
 
 	testCases := []struct {
-		name     string
-		inputs   []any
-		upstream ir.Upstream
-		result   func(ir.Upstream) *ir.EndpointsForUpstream
+		name    string
+		inputs  []any
+		backend ir.BackendObjectIR
+		result  func(ir.BackendObjectIR) *ir.EndpointsForBackend
 	}{
 		{
 			name: "one matching pod",
@@ -73,7 +73,7 @@ func TestEndpointsFromInferencePool(t *testing.T) {
 					},
 				},
 			},
-			upstream: ir.Upstream{
+			backend: ir.BackendObjectIR{
 				ObjectSource: ir.ObjectSource{
 					Namespace: "ns",
 					Name:      "inf-pool",
@@ -94,7 +94,7 @@ func TestEndpointsFromInferencePool(t *testing.T) {
 					},
 				},
 			},
-			result: func(us ir.Upstream) *ir.EndpointsForUpstream {
+			result: func(us ir.BackendObjectIR) *ir.EndpointsForBackend {
 				emd := ir.EndpointWithMd{
 					LbEndpoint: &envoyendpointv3.LbEndpoint{
 						LoadBalancingWeight: wrapperspb.UInt32(1),
@@ -121,7 +121,7 @@ func TestEndpointsFromInferencePool(t *testing.T) {
 						},
 					},
 				}
-				result := ir.NewEndpointsForUpstream(us)
+				result := ir.NewEndpointsForBackend(us)
 				result.Add(ir.PodLocality{
 					Region: "region1",
 					Zone:   "zone1",
@@ -145,7 +145,7 @@ func TestEndpointsFromInferencePool(t *testing.T) {
 					},
 				},
 			},
-			upstream: ir.Upstream{
+			backend: ir.BackendObjectIR{
 				ObjectSource: ir.ObjectSource{
 					Namespace: "ns",
 					Name:      "inf-pool",
@@ -166,9 +166,9 @@ func TestEndpointsFromInferencePool(t *testing.T) {
 					},
 				},
 			},
-			result: func(us ir.Upstream) *ir.EndpointsForUpstream {
+			result: func(us ir.BackendObjectIR) *ir.EndpointsForBackend {
 				// No matching pods, so result should be empty.
-				return ir.NewEndpointsForUpstream(us)
+				return ir.NewEndpointsForBackend(us)
 			},
 		},
 		{
@@ -217,7 +217,7 @@ func TestEndpointsFromInferencePool(t *testing.T) {
 					},
 				},
 			},
-			upstream: ir.Upstream{
+			backend: ir.BackendObjectIR{
 				ObjectSource: ir.ObjectSource{
 					Namespace: "ns",
 					Name:      "inf-pool",
@@ -238,9 +238,9 @@ func TestEndpointsFromInferencePool(t *testing.T) {
 					},
 				},
 			},
-			result: func(us ir.Upstream) *ir.EndpointsForUpstream {
+			result: func(us ir.BackendObjectIR) *ir.EndpointsForBackend {
 				// Expect both pods to be included.
-				result := ir.NewEndpointsForUpstream(us)
+				result := ir.NewEndpointsForBackend(us)
 				result.Add(ir.PodLocality{}, ir.EndpointWithMd{
 					LbEndpoint: krtcollections.CreateLBEndpoint("1.2.3.4", 8080, map[string]string{"app": "inference"}, true),
 					EndpointMd: ir.EndpointMetadata{
@@ -284,7 +284,7 @@ func TestEndpointsFromInferencePool(t *testing.T) {
 					},
 				},
 			},
-			upstream: ir.Upstream{
+			backend: ir.BackendObjectIR{
 				ObjectSource: ir.ObjectSource{
 					Namespace: "ns1",
 					Name:      "inf-pool",
@@ -305,9 +305,9 @@ func TestEndpointsFromInferencePool(t *testing.T) {
 					},
 				},
 			},
-			result: func(us ir.Upstream) *ir.EndpointsForUpstream {
+			result: func(us ir.BackendObjectIR) *ir.EndpointsForBackend {
 				// No pods should be selected since they are in a different namespace.
-				return ir.NewEndpointsForUpstream(us)
+				return ir.NewEndpointsForBackend(us)
 			},
 		},
 		{
@@ -338,7 +338,7 @@ func TestEndpointsFromInferencePool(t *testing.T) {
 					},
 				},
 			},
-			upstream: ir.Upstream{
+			backend: ir.BackendObjectIR{
 				ObjectSource: ir.ObjectSource{
 					Namespace: "ns",
 					Name:      "inf-pool",
@@ -359,9 +359,9 @@ func TestEndpointsFromInferencePool(t *testing.T) {
 					},
 				},
 			},
-			result: func(us ir.Upstream) *ir.EndpointsForUpstream {
+			result: func(us ir.BackendObjectIR) *ir.EndpointsForBackend {
 				// No endpoints should be created since the pod has no IP.
-				return ir.NewEndpointsForUpstream(us)
+				return ir.NewEndpointsForBackend(us)
 			},
 		},
 	}
@@ -378,8 +378,8 @@ func TestEndpointsFromInferencePool(t *testing.T) {
 
 			// Create InferencePool collection
 			infPools := krttest.GetMockCollection[*infextv1a1.InferencePool](mock)
-			infPoolUpstream := krt.NewCollection(infPools, func(kctx krt.HandlerContext, pool *infextv1a1.InferencePool) *ir.Upstream {
-				return &ir.Upstream{
+			infPoolBackendObjectIR := krt.NewCollection(infPools, func(kctx krt.HandlerContext, pool *infextv1a1.InferencePool) *ir.BackendObjectIR {
+				return &ir.BackendObjectIR{
 					ObjectSource: ir.ObjectSource{
 						Namespace: pool.Namespace,
 						Name:      pool.Name,
@@ -389,17 +389,17 @@ func TestEndpointsFromInferencePool(t *testing.T) {
 					Obj:  pool,
 					Port: pool.Spec.TargetPortNumber,
 				}
-			}, krtutil.KrtOptions{}.ToOptions("InfPoolUpstreams")...)
+			}, krtutil.KrtOptions{}.ToOptions("InfPoolBackendObjectIRs")...)
 
 			// Initialize InferencePool-based endpoint collection
-			infPoolInputs := newInfPoolEndpointsInputs(krtutil.KrtOptions{}, infPoolUpstream, pods)
+			infPoolInputs := newInfPoolEndpointsInputs(krtutil.KrtOptions{}, infPoolBackendObjectIR, pods)
 
 			ctx := context.Background()
 			builder := transformInfPoolEndpoints(ctx, infPoolInputs)
 
 			// Run the test transformation
-			eps := builder(krt.TestingDummyContext{}, tc.upstream)
-			res := tc.result(tc.upstream)
+			eps := builder(krt.TestingDummyContext{}, tc.backend)
+			res := tc.result(tc.backend)
 
 			if eps == nil && res == nil {
 				return // Both are nil, test passes

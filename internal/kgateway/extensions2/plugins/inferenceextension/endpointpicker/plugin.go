@@ -65,7 +65,7 @@ func NewPluginFromCollections(
 		var refs []types.NamespacedName
 		for _, rule := range route.Spec.Rules {
 			for _, backend := range rule.BackendRefs {
-				if backend.Kind != nil && *backend.Kind == "InferencePool" {
+				if backend.Kind != nil && *backend.Kind == wellknown.InferencePoolKind {
 					refs = append(refs, types.NamespacedName{
 						Namespace: route.Namespace,
 						Name:      string(backend.Name),
@@ -76,7 +76,7 @@ func NewPluginFromCollections(
 		return refs
 	})
 
-	// The InferencePool group kind used by the Upstream IR and the ContributesUpstreams plugin.
+	// The InferencePool group kind used by the BackendObjectIR and the ContributesBackendObjectIRs plugin.
 	gk := schema.GroupKind{
 		Group: infextv1a1.GroupVersion.Group,
 		Kind:  wellknown.InferencePoolKind,
@@ -85,11 +85,11 @@ func NewPluginFromCollections(
 	// Build the Service IR from the Service collection.
 	irSvcs := buildServiceIRCollection(svcCol, commonCol)
 
-	// Build the Upstream IR translation function from the Service IR.
+	// Build the BackendObjectIR translation function from the Service IR.
 	translate := buildTranslateFunc(ctx, krtcollections.NewServiceIndex(irSvcs))
 
-	// Create an Upstream from the InferencePool.
-	us := krt.NewCollection(poolCol, func(kctx krt.HandlerContext, pool *infextv1a1.InferencePool) *ir.Upstream {
+	// Create a BackendObjectIR from the InferencePool.
+	us := krt.NewCollection(poolCol, func(kctx krt.HandlerContext, pool *infextv1a1.InferencePool) *ir.BackendObjectIR {
 		poolKey := types.NamespacedName{Namespace: pool.Namespace, Name: pool.Name}
 		matchingRoutes := httpRoutesByInferencePool.Lookup(poolKey)
 
@@ -114,8 +114,8 @@ func NewPluginFromCollections(
 			return nil
 		}
 
-		// This InferencePool is valid, create an Upstream IR representation.
-		return &ir.Upstream{
+		// This InferencePool is valid, create an BackendObjectIR IR representation.
+		return &ir.BackendObjectIR{
 			ObjectSource: ir.ObjectSource{
 				Kind:      gk.Kind,
 				Group:     gk.Group,
@@ -128,20 +128,20 @@ func NewPluginFromCollections(
 			CanonicalHostname: "",
 			ObjIr:             translate(kctx, pool),
 		}
-	}, commonCol.KrtOpts.ToOptions("EndpointPickerUpstreams")...)
+	}, commonCol.KrtOpts.ToOptions("EndpointPickerBackendObjectIR")...)
 
-	// Create an endpoints krt collection from the upstream.
+	// Create an endpoints krt collection from the BackendObjectIR.
 	inputs := newInfPoolEndpointsInputs(commonCol.KrtOpts, us, podCol)
 	infPoolEndpoints := newInfPoolEndpoints(ctx, inputs)
 
 	return extplug.Plugin{
-		ContributesUpstreams: map[schema.GroupKind]extplug.UpstreamPlugin{
+		ContributesBackends: map[schema.GroupKind]extplug.BackendPlugin{
 			gk: {
-				UpstreamInit: ir.UpstreamInit{
-					InitUpstream: processUpstream,
+				BackendInit: ir.BackendInit{
+					InitBackend: processBackendObjectIR,
 				},
 				Endpoints: infPoolEndpoints,
-				Upstreams: us,
+				Backends:  us,
 			},
 		},
 		ContributesPolicies: map[schema.GroupKind]extplug.PolicyPlugin{
@@ -214,7 +214,7 @@ func buildTranslateFunc(ctx context.Context, svcs *krtcollections.ServiceIndex) 
 	}
 }
 
-func processUpstream(ctx context.Context, in ir.Upstream, out *clusterv3.Cluster) {
+func processBackendObjectIR(ctx context.Context, in ir.BackendObjectIR, out *clusterv3.Cluster) {
 	// Set cluster type to ORIGINAL_DST
 	out.ClusterDiscoveryType = &clusterv3.Cluster_Type{
 		Type: clusterv3.Cluster_ORIGINAL_DST,
@@ -257,34 +257,34 @@ func processUpstream(ctx context.Context, in ir.Upstream, out *clusterv3.Cluster
 }
 
 type InfPoolEndpointsInputs struct {
-	Upstreams krt.Collection[ir.Upstream]
-	Pods      krt.Collection[krtcollections.LocalityPod]
-	KrtOpts   krtutil.KrtOptions
+	BackendObjectIRs krt.Collection[ir.BackendObjectIR]
+	Pods             krt.Collection[krtcollections.LocalityPod]
+	KrtOpts          krtutil.KrtOptions
 }
 
 func newInfPoolEndpointsInputs(
 	krtOpts krtutil.KrtOptions,
-	infPoolUpstreams krt.Collection[ir.Upstream],
+	infPoolBackendObjectIRs krt.Collection[ir.BackendObjectIR],
 	podCol krt.Collection[krtcollections.LocalityPod],
 ) InfPoolEndpointsInputs {
 	return InfPoolEndpointsInputs{
-		Upstreams: infPoolUpstreams,
-		Pods:      podCol,
-		KrtOpts:   krtOpts,
+		BackendObjectIRs: infPoolBackendObjectIRs,
+		Pods:             podCol,
+		KrtOpts:          krtOpts,
 	}
 }
 
-func newInfPoolEndpoints(ctx context.Context, inputs InfPoolEndpointsInputs) krt.Collection[ir.EndpointsForUpstream] {
-	return krt.NewCollection(inputs.Upstreams, transformInfPoolEndpoints(ctx, inputs), inputs.KrtOpts.ToOptions("InfPoolEndpoints")...)
+func newInfPoolEndpoints(ctx context.Context, inputs InfPoolEndpointsInputs) krt.Collection[ir.EndpointsForBackend] {
+	return krt.NewCollection(inputs.BackendObjectIRs, transformInfPoolEndpoints(ctx, inputs), inputs.KrtOpts.ToOptions("InfPoolEndpoints")...)
 }
 
-func transformInfPoolEndpoints(ctx context.Context, inputs InfPoolEndpointsInputs) func(kctx krt.HandlerContext, us ir.Upstream) *ir.EndpointsForUpstream {
+func transformInfPoolEndpoints(ctx context.Context, inputs InfPoolEndpointsInputs) func(kctx krt.HandlerContext, us ir.BackendObjectIR) *ir.EndpointsForBackend {
 	logger := contextutils.LoggerFrom(ctx).Desugar()
 
-	return func(kctx krt.HandlerContext, us ir.Upstream) *ir.EndpointsForUpstream {
+	return func(kctx krt.HandlerContext, us ir.BackendObjectIR) *ir.EndpointsForBackend {
 		infPool, ok := us.Obj.(*infextv1a1.InferencePool)
 		if !ok {
-			logger.Debug("not an InferencePool upstream")
+			logger.Debug("not an InferencePool object")
 			return nil
 		}
 
@@ -307,12 +307,12 @@ func transformInfPoolEndpoints(ctx context.Context, inputs InfPoolEndpointsInput
 			return labelsMatch(labelSelector, pod.AugmentedLabels)
 		}))
 
-		// Always return a valid EndpointsForUpstream instance, even if no matching pods
-		ret := ir.NewEndpointsForUpstream(us)
+		// Always return a valid EndpointsForBackendObjectIR instance, even if no matching pods
+		ret := ir.NewEndpointsForBackend(us)
 
 		if len(podMatches) == 0 {
 			logger.Debug("no matching pods found for inference pool", zap.String("pool", infPool.Name))
-			return ret // Return an empty but valid EndpointsForUpstream
+			return ret // Return an empty but valid EndpointsForBackendObjectIR
 		}
 
 		// Deduplicate Pod IPs
@@ -371,18 +371,18 @@ type endpointPickerPass struct {
 	// extProcClusters maps an InferencePool keyed by namespace/name to cluster name.
 	// TODO [danehans]: Use typesNamespacedName for key.
 	extProcClusters  map[types.NamespacedName]string
-	infPoolUpstream  krt.Collection[ir.Upstream]
-	infPoolEndpoints krt.Collection[ir.EndpointsForUpstream]
+	infPoolBackend   krt.Collection[ir.BackendObjectIR]
+	infPoolEndpoints krt.Collection[ir.EndpointsForBackend]
 }
 
 // newEndpointPickerPass initializes a new endpoint picker instance.
 func newEndpointPickerPass(
-	infPoolUpstream krt.Collection[ir.Upstream],
-	infPoolEndpoints krt.Collection[ir.EndpointsForUpstream],
+	infPoolBackendObjectIR krt.Collection[ir.BackendObjectIR],
+	infPoolEndpoints krt.Collection[ir.EndpointsForBackend],
 ) ir.ProxyTranslationPass {
 	return &endpointPickerPass{
 		extProcClusters:  make(map[types.NamespacedName]string),
-		infPoolUpstream:  infPoolUpstream,
+		infPoolBackend:   infPoolBackendObjectIR,
 		infPoolEndpoints: infPoolEndpoints,
 	}
 }
@@ -536,11 +536,11 @@ func (e *endpointPickerPass) ResourcesToAdd(ctx context.Context) ir.Resources {
 
 	for key, clusterName := range e.extProcClusters {
 		var kctx krt.HandlerContext
-		upstream := krt.FetchOne(kctx, e.infPoolUpstream, krt.FilterObjectName(key))
-		if upstream == nil {
+		backend := krt.FetchOne(kctx, e.infPoolBackend, krt.FilterObjectName(key))
+		if backend == nil {
 			continue
 		}
-		pool, ok := upstream.Obj.(*infextv1a1.InferencePool)
+		pool, ok := backend.Obj.(*infextv1a1.InferencePool)
 		if !ok {
 			continue
 		}
