@@ -4,8 +4,9 @@ kind: ServiceAccount
 metadata:
   name: {{ .Release.Name }}
 ---
+ # TODO [danehans]: EPP should use Role and RoleBinding resources: https://github.com/kubernetes-sigs/gateway-api-inference-extension/issues/224
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
   name: {{ .Release.Name }}
 rules:
@@ -21,6 +22,7 @@ rules:
 - apiGroups: ["discovery.k8s.io"]
   resources: ["endpointslices"]
   verbs: ["get", "watch", "list"]
+ # TODO [danehans]: Unsure why the following rules are needed: https://github.com/kubernetes-sigs/gateway-api-inference-extension/issues/224
 - apiGroups:
   - authentication.k8s.io
   resources:
@@ -35,14 +37,15 @@ rules:
   - create
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
+kind: ClusterRoleBinding
 metadata:
   name: {{ .Release.Name }}
 subjects:
 - kind: ServiceAccount
   name: {{ .Release.Name }}
+  namespace: {{ $endpointPicker.poolNamespace }}
 roleRef:
-  kind: Role
+  kind: ClusterRole
   name: {{ .Release.Name }}
 ---
 apiVersion: apps/v1
@@ -52,7 +55,7 @@ metadata:
   labels:
     app.kubernetes.io/component: endpoint-picker
     app.kubernetes.io/name: {{ .Release.Name }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/instance: kgateway
 spec:
   replicas: 1
   selector:
@@ -102,7 +105,7 @@ metadata:
   labels:
     app.kubernetes.io/component: endpoint-picker
     app.kubernetes.io/name: {{ .Release.Name }}
-    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/instance: kgateway
 spec:
   selector:
     app: {{ .Release.Name }}

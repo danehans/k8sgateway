@@ -1474,18 +1474,18 @@ var _ = Describe("Deployer", func() {
 
 			// Find the child objects.
 			var sa *corev1.ServiceAccount
-			var role *rbacv1.Role
-			var rb *rbacv1.RoleBinding
+			var clusterRole *rbacv1.ClusterRole
+			var crb *rbacv1.ClusterRoleBinding
 			var dep *appsv1.Deployment
 			var svc *corev1.Service
 			for _, obj := range objs {
 				switch t := obj.(type) {
 				case *corev1.ServiceAccount:
 					sa = t
-				case *rbacv1.Role:
-					role = t
-				case *rbacv1.RoleBinding:
-					rb = t
+				case *rbacv1.ClusterRole:
+					clusterRole = t
+				case *rbacv1.ClusterRoleBinding:
+					crb = t
 				case *appsv1.Deployment:
 					dep = t
 				case *corev1.Service:
@@ -1493,29 +1493,32 @@ var _ = Describe("Deployer", func() {
 				}
 			}
 			Expect(sa).NotTo(BeNil(), "expected a ServiceAccount to be rendered")
-			Expect(role).NotTo(BeNil(), "expected a Role to be rendered")
-			Expect(rb).NotTo(BeNil(), "expected a RoleBinding to be rendered")
+			Expect(clusterRole).NotTo(BeNil(), "expected a Role to be rendered")
+			Expect(crb).NotTo(BeNil(), "expected a RoleBinding to be rendered")
 			Expect(dep).NotTo(BeNil(), "expected a Deployment to be rendered")
 			Expect(svc).NotTo(BeNil(), "expected a Service to be rendered")
 
 			// Check that owner references are set on all rendered objects to the InferencePool.
 			for _, obj := range objs {
-				ownerRefs := obj.GetOwnerReferences()
-				Expect(ownerRefs).To(HaveLen(1))
-				ref := ownerRefs[0]
-				Expect(ref.Name).To(Equal(pool.Name))
-				Expect(ref.UID).To(Equal(pool.UID))
-				Expect(ref.Kind).To(Equal(pool.Kind))
-				Expect(ref.APIVersion).To(Equal(pool.APIVersion))
-				Expect(*ref.Controller).To(BeTrue())
+				gvk := obj.GetObjectKind().GroupVersionKind()
+				if deployer.IsNamespaced(gvk) {
+					ownerRefs := obj.GetOwnerReferences()
+					Expect(ownerRefs).To(HaveLen(1))
+					ref := ownerRefs[0]
+					Expect(ref.Name).To(Equal(pool.Name))
+					Expect(ref.UID).To(Equal(pool.UID))
+					Expect(ref.Kind).To(Equal(pool.Kind))
+					Expect(ref.APIVersion).To(Equal(pool.APIVersion))
+					Expect(*ref.Controller).To(BeTrue())
+				}
 			}
 
 			// Validate that the rendered Deployment and Service have the expected names.
 			// (The template hardcodes the names to "inference-gateway-ext-proc".)
 			expectedName := fmt.Sprintf("%s-endpoint-picker", pool.Name)
 			Expect(sa.Name).To(Equal(expectedName))
-			Expect(role.Name).To(Equal(expectedName))
-			Expect(rb.Name).To(Equal(expectedName))
+			Expect(clusterRole.Name).To(Equal(expectedName))
+			Expect(crb.Name).To(Equal(expectedName))
 			Expect(dep.Name).To(Equal(expectedName))
 			Expect(svc.Name).To(Equal(expectedName))
 

@@ -42,10 +42,22 @@ import (
 // with a status.parents[].controllerName that matches our Gateway controllerName.
 
 func NewPlugin(ctx context.Context, commonCol *common.CommonCollections) extplug.Plugin {
-	poolClient := kclient.New[*infextv1a1.InferencePool](commonCol.Client)
-	pools := krt.WrapClient(poolClient, commonCol.KrtOpts.ToOptions("InferencePools")...)
-	routeClient := kclient.New[*gwv1.HTTPRoute](commonCol.Client)
-	routes := krt.WrapClient(routeClient, commonCol.KrtOpts.ToOptions("HTTPRoutes")...)
+	// Use the dynamic collection helper to create a collection of InferencePool objects.
+	poolGVR := schema.GroupVersionResource{
+		Group:    infextv1a1.GroupVersion.Group,
+		Version:  infextv1a1.GroupVersion.Version,
+		Resource: "inferencepools",
+	}
+	pools := krtutil.SetupCollectionDynamic[infextv1a1.InferencePool](ctx, commonCol.Client, poolGVR, commonCol.KrtOpts.ToOptions("InferencePools")...)
+
+	// Use the dynamic collection helper to create a collection of HTTPRoute objects.
+	hrouteGVR := schema.GroupVersionResource{
+		Group:    gwv1.GroupVersion.Group,
+		Version:  gwv1.GroupVersion.Version,
+		Resource: "httproutes",
+	}
+	routes := krtutil.SetupCollectionDynamic[gwv1.HTTPRoute](ctx, commonCol.Client, hrouteGVR, commonCol.KrtOpts.ToOptions("HTTPRoutes")...)
+
 	svcClient := kclient.New[*corev1.Service](commonCol.Client)
 	svcs := krt.WrapClient(svcClient, commonCol.KrtOpts.ToOptions("Services")...)
 	return NewPluginFromCollections(ctx, commonCol, pools, routes, svcs, commonCol.Pods, commonCol.Settings)

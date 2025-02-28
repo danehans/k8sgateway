@@ -516,19 +516,26 @@ func (d *Deployer) GetEndpointPickerObjs(pool *infextv1a1.InferencePool) ([]clie
 		return nil, fmt.Errorf("failed to render inference extension objects: %w", err)
 	}
 
-	// Ensure that each rendered object has its namespace set.
+	// Ensure that each namespaced rendered object has its namespace and ownerRef set.
 	for _, obj := range objs {
-		if obj.GetNamespace() == "" {
-			obj.SetNamespace(pool.Namespace)
+		gvk := obj.GetObjectKind().GroupVersionKind()
+		if IsNamespaced(gvk) {
+			if obj.GetNamespace() == "" {
+				obj.SetNamespace(pool.Namespace)
+			}
+			obj.SetOwnerReferences([]metav1.OwnerReference{{
+				APIVersion: pool.APIVersion,
+				Kind:       pool.Kind,
+				Name:       pool.Name,
+				UID:        pool.UID,
+				Controller: ptr.To(true),
+			}})
+		} else {
+			// TODO [danehans]: Not sure why a ns must be set for cluster-scoped objects:
+			// failed to apply object rbac.authorization.k8s.io/v1, Kind=ClusterRoleBinding
+			// vllm-llama2-7b-pool-endpoint-picker: Namespace parameter required.
+			obj.SetNamespace("")
 		}
-		// Set owner references so that these objects are tied to the InferencePool.
-		obj.SetOwnerReferences([]metav1.OwnerReference{{
-			APIVersion: pool.APIVersion,
-			Kind:       pool.Kind,
-			Name:       pool.Name,
-			UID:        pool.UID,
-			Controller: ptr.To(true),
-		}})
 	}
 
 	return objs, nil
@@ -543,6 +550,14 @@ func (d *Deployer) DeployObjs(ctx context.Context, objs []client.Object) error {
 		}
 	}
 	return nil
+}
+
+// IsNamespaced returns true if the resource is namespaced.
+func IsNamespaced(gvk schema.GroupVersionKind) bool {
+	if gvk == wellknown.ClusterRoleGVK || gvk == wellknown.ClusterRoleBindingGVK {
+		return false
+	}
+	return true
 }
 
 func loadFs(filesystem fs.FS) (*chart.Chart, error) {

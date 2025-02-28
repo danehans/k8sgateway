@@ -34,7 +34,7 @@ import (
 	"github.com/kgateway-dev/kgateway/v2/internal/kgateway/utils/krtutil"
 	"github.com/kgateway-dev/kgateway/v2/internal/kgateway/wellknown"
 	"github.com/kgateway-dev/kgateway/v2/pkg/client/clientset/versioned"
-	glooschemes "github.com/kgateway-dev/kgateway/v2/pkg/schemes"
+	kgtwschemes "github.com/kgateway-dev/kgateway/v2/pkg/schemes"
 	"github.com/kgateway-dev/kgateway/v2/pkg/utils/kubeutils"
 	"github.com/kgateway-dev/kgateway/v2/pkg/utils/namespaces"
 )
@@ -102,7 +102,7 @@ func NewControllerBuilder(ctx context.Context, cfg StartConfig) (*ControllerBuil
 	scheme := DefaultScheme()
 
 	// Extend the scheme if the TCPRoute CRD exists.
-	if err := glooschemes.AddGatewayV1A2Scheme(cfg.RestConfig, scheme); err != nil {
+	if err := kgtwschemes.AddGatewayV1A2Scheme(cfg.RestConfig, scheme); err != nil {
 		return nil, err
 	}
 
@@ -146,11 +146,17 @@ func NewControllerBuilder(ctx context.Context, cfg StartConfig) (*ControllerBuil
 	)
 
 	// Extend the scheme and add the EPP plugin if the InferencePool CRD exists.
-	exists, err := glooschemes.AddInferExtV1A1Scheme(cfg.RestConfig, scheme)
+	exists, err := kgtwschemes.AddInferExtV1A1Scheme(cfg.RestConfig, scheme)
+	setupLog.Info("checking inference extension CRDs exist", "result", exists)
+
 	switch {
 	case err != nil:
 		return nil, err
 	case exists:
+		setupLog.Info("adding inference extension endpoint picker plugin")
+		if cfg.ExtraPlugins == nil {
+			cfg.ExtraPlugins = []extensionsplug.Plugin{}
+		}
 		cfg.ExtraPlugins = append(cfg.ExtraPlugins, endpointpicker.NewPlugin(ctx, commoncol))
 	}
 

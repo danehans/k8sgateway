@@ -34,7 +34,7 @@ func AddGatewayV1A2Scheme(restConfig *rest.Config, scheme *runtime.Scheme) error
 
 // AddInferExtV1A1Scheme adds the Inference Extension v1alpha1 scheme to the provided scheme if the InferencePool CRD exists.
 func AddInferExtV1A1Scheme(restConfig *rest.Config, scheme *runtime.Scheme) (bool, error) {
-	exists, err := CRDExists(restConfig, infextv1a1.GroupVersion.Group, gwv1a2.GroupVersion.Version, wellknown.InferencePoolKind)
+	exists, err := CRDExists(restConfig, infextv1a1.GroupVersion.Group, infextv1a1.GroupVersion.Version, wellknown.InferencePoolKind)
 	if err != nil {
 		return false, fmt.Errorf("error checking if %s CRD exists: %w", wellknown.InferencePoolKind, err)
 	}
