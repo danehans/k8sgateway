@@ -42,14 +42,6 @@ import (
 // with a status.parents[].controllerName that matches our Gateway controllerName.
 
 func NewPlugin(ctx context.Context, commonCol *common.CommonCollections) extplug.Plugin {
-	// Use the dynamic collection helper to create a collection of InferencePool objects.
-	poolGVR := schema.GroupVersionResource{
-		Group:    infextv1a1.GroupVersion.Group,
-		Version:  infextv1a1.GroupVersion.Version,
-		Resource: "inferencepools",
-	}
-	pools := krtutil.SetupCollectionDynamic[infextv1a1.InferencePool](ctx, commonCol.Client, poolGVR, commonCol.KrtOpts.ToOptions("InferencePools")...)
-
 	// Use the dynamic collection helper to create a collection of HTTPRoute objects.
 	hrouteGVR := schema.GroupVersionResource{
 		Group:    gwv1.GroupVersion.Group,
@@ -57,6 +49,14 @@ func NewPlugin(ctx context.Context, commonCol *common.CommonCollections) extplug
 		Resource: "httproutes",
 	}
 	routes := krtutil.SetupCollectionDynamic[gwv1.HTTPRoute](ctx, commonCol.Client, hrouteGVR, commonCol.KrtOpts.ToOptions("HTTPRoutes")...)
+
+	// Use the dynamic collection helper to create a collection of InferencePool objects.
+	poolGVR := schema.GroupVersionResource{
+		Group:    infextv1a1.GroupVersion.Group,
+		Version:  infextv1a1.GroupVersion.Version,
+		Resource: "inferencepools",
+	}
+	pools := krtutil.SetupCollectionDynamic[infextv1a1.InferencePool](ctx, commonCol.Client, poolGVR, commonCol.KrtOpts.ToOptions("InferencePools")...)
 
 	svcClient := kclient.New[*corev1.Service](commonCol.Client)
 	svcs := krt.WrapClient(svcClient, commonCol.KrtOpts.ToOptions("Services")...)
@@ -72,18 +72,40 @@ func NewPluginFromCollections(
 	podCol krt.Collection[krtcollections.LocalityPod],
 	stngs settings.Settings,
 ) extplug.Plugin {
+	logger := contextutils.LoggerFrom(ctx).Desugar()
+
 	// Create an index on HTTPRoutes by the InferencePool they reference.
 	httpRoutesByInferencePool := krt.NewIndex(routeCol, func(route *gwv1.HTTPRoute) []types.NamespacedName {
 		var refs []types.NamespacedName
+		if route == nil {
+			logger.Info("no HTTPRoute to index for InferencePool")
+			return refs
+		} else {
+			logger.Info("HTTPRoute being indexed for InferencePool", zap.Any("HTTPRoute", *route))
+		}
+		if len(route.Spec.Rules) == 0 {
+			logger.Info("no HTTPRoute rules to index for InferencePool")
+			return refs
+		}
 		for _, rule := range route.Spec.Rules {
+			if len(rule.BackendRefs) == 0 {
+				logger.Info("no backendRefs for HTTPRoute rule to index for InferencePool")
+				return refs
+			}
 			for _, backend := range rule.BackendRefs {
-				if backend.Kind != nil && *backend.Kind == wellknown.InferencePoolKind {
+				if backend.Kind != nil && *backend.Kind == gwv1.Kind(wellknown.InferencePoolKind) {
+				logger.Info("backendRef is an InferencePool", zap.Any("kind", backend.Kind))
 					refs = append(refs, types.NamespacedName{
 						Namespace: route.Namespace,
 						Name:      string(backend.Name),
 					})
+				} else {
+					logger.Info("backendRef is not an InferencePool", zap.Any("kind", backend.Kind))
 				}
 			}
+		}
+		for _, ref := range refs {
+			logger.Info("Ref added to index for InferencePool", zap.Any("ref", ref))
 		}
 		return refs
 	})
@@ -104,12 +126,16 @@ func NewPluginFromCollections(
 	us := krt.NewCollection(poolCol, func(kctx krt.HandlerContext, pool *infextv1a1.InferencePool) *ir.BackendObjectIR {
 		poolKey := types.NamespacedName{Namespace: pool.Namespace, Name: pool.Name}
 		matchingRoutes := httpRoutesByInferencePool.Lookup(poolKey)
+		if len(matchingRoutes) == 0 {
+			logger.Info("no matching HTTPRoutes for InferencePool")
+		}
 
 		valid := false
 		for _, route := range matchingRoutes {
 			// Iterate over status.parents and check if any match the Gateway controller
 			for _, parent := range route.Status.Parents {
 				if parent.ControllerName == gwv1.GatewayController(wellknown.GatewayControllerName) {
+					logger.Info("validated parentRef for InferencePool", zap.Any("parent", parent))
 					valid = true
 					break
 				}
@@ -123,6 +149,7 @@ func NewPluginFromCollections(
 		if !valid {
 			// Skip this InferencePool if it has no valid HTTPRoute references.
 			// TODO [danehans]: Surface a status condition.
+			logger.Info("failed to validate parentRef for InferencePool")
 			return nil
 		}
 
@@ -274,13 +301,31 @@ type InfPoolEndpointsInputs struct {
 	KrtOpts          krtutil.KrtOptions
 }
 
+func (i InfPoolEndpointsInputs) ResourceName() string {
+	return "inference-pool-inputs"
+}
+
+// in case multiple policies attached to the same resource, we sort by policy creation time.
+func (i InfPoolEndpointsInputs) CreationTime() time.Time {
+	// settings always created at the same time
+	return time.Time{}
+}
+
+func (i InfPoolEndpointsInputs) Equals(in any) bool {
+	s, ok := in.(InfPoolEndpointsInputs)
+	if !ok {
+		return false
+	}
+	return i == s
+}
+
 func newInfPoolEndpointsInputs(
 	krtOpts krtutil.KrtOptions,
-	infPoolBackendObjectIRs krt.Collection[ir.BackendObjectIR],
+	backendObjectIRs krt.Collection[ir.BackendObjectIR],
 	podCol krt.Collection[krtcollections.LocalityPod],
 ) InfPoolEndpointsInputs {
 	return InfPoolEndpointsInputs{
-		BackendObjectIRs: infPoolBackendObjectIRs,
+		BackendObjectIRs: backendObjectIRs,
 		Pods:             podCol,
 		KrtOpts:          krtOpts,
 	}

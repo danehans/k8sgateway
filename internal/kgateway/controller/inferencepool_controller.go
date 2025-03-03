@@ -11,6 +11,7 @@ import (
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/kgateway-dev/kgateway/v2/internal/kgateway/deployer"
+	"github.com/kgateway-dev/kgateway/v2/internal/kgateway/wellknown"
 )
 
 type inferencePoolReconciler struct {
@@ -29,9 +30,20 @@ func (r *inferencePoolReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	if pool.GetDeletionTimestamp() != nil {
-		// no need to do anything as we have owner refs, so children will be deleted
-		log.Info("inferencepool deleted, no need for reconciling")
+		// Remove the cluster-scoped resources and finalizer.
+		if err := r.deployer.CleanupClusterScopedResources(ctx, pool); err != nil {
+			return ctrl.Result{}, err
+		}
+		pool.Finalizers = removeString(pool.Finalizers, wellknown.InferencePoolFinalizer)
+		if err := r.cli.Update(ctx, pool); err != nil {
+			return ctrl.Result{}, err
+		}
 		return ctrl.Result{}, nil
+	}
+
+	// Ensure the finalizer is present for the InferencePool.
+	if err := r.deployer.EnsureFinalizer(ctx, pool); err != nil {
+		return ctrl.Result{}, err
 	}
 
 	// Use the registered index to list HTTPRoutes that reference this pool.
@@ -67,4 +79,15 @@ func (r *inferencePoolReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	log.V(1).Info("reconciled request", "request", req)
 
 	return ctrl.Result{}, nil
+}
+
+// removeString is a helper function to remove a string from a slice.
+func removeString(slice []string, s string) []string {
+	var result []string
+	for _, item := range slice {
+		if item != s {
+			result = append(result, item)
+		}
+	}
+	return result
 }

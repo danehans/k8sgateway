@@ -8,15 +8,16 @@ import (
 	"io"
 	"io/fs"
 	"path/filepath"
+	"slices"
 
 	"github.com/rotisserie/eris"
-	"golang.org/x/exp/slices"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/chart"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/storage"
 	"helm.sh/helm/v3/pkg/storage/driver"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -549,6 +550,39 @@ func (d *Deployer) DeployObjs(ctx context.Context, objs []client.Object) error {
 			return fmt.Errorf("failed to apply object %s %s: %w", obj.GetObjectKind().GroupVersionKind().String(), obj.GetName(), err)
 		}
 	}
+	return nil
+}
+
+// EnsureFinalizer adds the InferencePool finalizer to the given pool if it’s not already present.
+func (d *Deployer) EnsureFinalizer(ctx context.Context, pool *infextv1a1.InferencePool) error {
+	if slices.Contains(pool.Finalizers, wellknown.InferencePoolFinalizer) {
+			return nil
+		}
+	pool.Finalizers = append(pool.Finalizers, wellknown.InferencePoolFinalizer)
+	return d.cli.Update(ctx, pool)
+}
+
+// CleanupClusterScopedResources deletes the ClusterRole and ClusterRoleBinding for the given pool.
+func (d *Deployer) CleanupClusterScopedResources(ctx context.Context, pool *infextv1a1.InferencePool) error {
+	// The same release name as in the Helm template.
+	releaseName := fmt.Sprintf("%s-endpoint-picker", pool.Name)
+
+	// Delete the ClusterRole.
+	var cr rbacv1.ClusterRole
+	if err := d.cli.Get(ctx, client.ObjectKey{Name: releaseName}, &cr); err == nil {
+		if err := d.cli.Delete(ctx, &cr); err != nil {
+			return fmt.Errorf("failed to delete ClusterRole %s: %w", releaseName, err)
+		}
+	}
+
+	// Delete the ClusterRoleBinding.
+	var crb rbacv1.ClusterRoleBinding
+	if err := d.cli.Get(ctx, client.ObjectKey{Name: releaseName}, &crb); err == nil {
+		if err := d.cli.Delete(ctx, &crb); err != nil {
+			return fmt.Errorf("failed to delete ClusterRoleBinding %s: %w", releaseName, err)
+		}
+	}
+
 	return nil
 }
 
