@@ -18,12 +18,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	czap "sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+	infextv1a1 "sigs.k8s.io/gateway-api-inference-extension/api/v1alpha1"
 	apiv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/kgateway-dev/kgateway/v2/internal/kgateway/deployer"
 	"github.com/kgateway-dev/kgateway/v2/internal/kgateway/extensions2"
 	"github.com/kgateway-dev/kgateway/v2/internal/kgateway/extensions2/common"
 	extensionsplug "github.com/kgateway-dev/kgateway/v2/internal/kgateway/extensions2/plugin"
+	"github.com/kgateway-dev/kgateway/v2/internal/kgateway/extensions2/plugins/inferenceextension/endpointpicker"
 	"github.com/kgateway-dev/kgateway/v2/internal/kgateway/extensions2/registry"
 	"github.com/kgateway-dev/kgateway/v2/internal/kgateway/extensions2/settings"
 	"github.com/kgateway-dev/kgateway/v2/internal/kgateway/ir"
@@ -32,7 +34,7 @@ import (
 	"github.com/kgateway-dev/kgateway/v2/internal/kgateway/utils/krtutil"
 	"github.com/kgateway-dev/kgateway/v2/internal/kgateway/wellknown"
 	"github.com/kgateway-dev/kgateway/v2/pkg/client/clientset/versioned"
-	glooschemes "github.com/kgateway-dev/kgateway/v2/pkg/schemes"
+	kgtwschemes "github.com/kgateway-dev/kgateway/v2/pkg/schemes"
 	"github.com/kgateway-dev/kgateway/v2/pkg/utils/kubeutils"
 	"github.com/kgateway-dev/kgateway/v2/pkg/utils/namespaces"
 )
@@ -100,7 +102,7 @@ func NewControllerBuilder(ctx context.Context, cfg StartConfig) (*ControllerBuil
 	scheme := DefaultScheme()
 
 	// Extend the scheme if the TCPRoute CRD exists.
-	if err := glooschemes.AddGatewayV1A2Scheme(cfg.RestConfig, scheme); err != nil {
+	if err := kgtwschemes.AddGatewayV1A2Scheme(cfg.RestConfig, scheme); err != nil {
 		return nil, err
 	}
 
@@ -142,6 +144,22 @@ func NewControllerBuilder(ctx context.Context, cfg StartConfig) (*ControllerBuil
 		setupLog,
 		*cfg.SetupOpts.GlobalSettings,
 	)
+
+	// Extend the scheme and add the EPP plugin if the InferencePool CRD exists.
+	exists, err := kgtwschemes.AddInferExtV1A1Scheme(cfg.RestConfig, scheme)
+	setupLog.Info("checking inference extension CRDs exist", "result", exists)
+
+	switch {
+	case err != nil:
+		return nil, err
+	case exists:
+		setupLog.Info("adding inference extension endpoint picker plugin")
+		if cfg.ExtraPlugins == nil {
+			cfg.ExtraPlugins = []extensionsplug.Plugin{}
+		}
+		cfg.ExtraPlugins = append(cfg.ExtraPlugins, endpointpicker.NewPlugin(ctx, commoncol))
+	}
+
 	gwClasses := sets.New(append(cfg.SetupOpts.ExtraGatewayClasses, wellknown.GatewayClassName)...)
 	isOurGw := func(gw *apiv1.Gateway) bool {
 		return gwClasses.Has(string(gw.Spec.GatewayClassName))
@@ -229,8 +247,21 @@ func (c *ControllerBuilder) Start(ctx context.Context) error {
 	}
 
 	if err := NewBaseGatewayController(ctx, gwCfg); err != nil {
-		setupLog.Error(err, "unable to create controller")
+		setupLog.Error(err, "unable to create gateway controller")
 		return err
+	}
+
+	// Create the InferencePool controller if the inference extension API group is registered.
+	if c.mgr.GetScheme().IsGroupRegistered(infextv1a1.GroupVersion.Group) {
+		poolCfg := &InferencePoolConfig{
+			Mgr:            c.mgr,
+			ControllerName: wellknown.GatewayControllerName,
+			InferenceExt:   new(deployer.InferenceExtInfo),
+		}
+		if err := NewBaseInferencePoolController(ctx, poolCfg, &gwCfg); err != nil {
+			setupLog.Error(err, "unable to create inferencepool controller")
+			return err
+		}
 	}
 
 	return c.mgr.Start(ctx)
