@@ -6,8 +6,10 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	infextv1a2 "sigs.k8s.io/gateway-api-inference-extension/api/v1alpha2"
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 	gwv1a2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	gwv1b1 "sigs.k8s.io/gateway-api/apis/v1beta1"
@@ -22,10 +24,14 @@ var SchemeBuilder = runtime.SchemeBuilder{
 	gwv1.Install,
 	gwv1b1.Install,
 
+	// K8s Gateway API Inference Extension resources
+	infextv1a2.AddToScheme,
+
 	// Kubernetes Core resources
 	corev1.AddToScheme,
 	appsv1.AddToScheme,
 	discoveryv1.AddToScheme,
+	rbacv1.AddToScheme,
 
 	// Register the apiextensions API group
 	apiextensionsv1.AddToScheme,

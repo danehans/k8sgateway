@@ -73,13 +73,16 @@ spec:
           - -poolName
           - {{ $endpointPicker.poolName }}
           - -v
-          - "3"
+          - "4"
           - -grpcPort
           - "9002"
           - -grpcHealthPort
           - "9003"
-        image: "registry.k8s.io/gateway-api-inference-extension/epp:v0.1.0"
+        image: "registry.k8s.io/gateway-api-inference-extension/epp:v0.2.0-rc.1"
         imagePullPolicy: IfNotPresent
+        env:
+        - name: USE_STREAMING
+          value: "false"
         ports:
           - containerPort: 9002
           - containerPort: 9003

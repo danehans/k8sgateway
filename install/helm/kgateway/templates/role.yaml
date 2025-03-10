@@ -61,6 +61,18 @@ rules:
   - update
   - watch
 - apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+- apiGroups:
   - discovery.k8s.io
   resources:
   - endpointslices
@@ -119,14 +131,6 @@ rules:
   - patch
   - update
 - apiGroups:
-  - networking.istio.io
-  resources:
-  - destinationrules
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
   - inference.networking.x-k8s.io
   resources:
   - inferencemodels
@@ -141,14 +145,28 @@ rules:
   verbs:
   - get
   - list
+  - update
   - watch
+- apiGroups:
+  - inference.networking.x-k8s.io
+  resources:
+  - inferencepools/status
+  verbs:
+  - patch
   - update
 - apiGroups:
-  - rbac.authorization.k8s.io
-  # TODO [danehans]: EPP should use Role and RoleBinding resources: https://github.com/kubernetes-sigs/gateway-api-inference-extension/issues/224
+  - networking.istio.io
   resources:
-  - clusterroles
+  - destinationrules
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
   - clusterrolebindings
+  - clusterroles
   verbs:
   - create
   - delete
@@ -157,16 +175,3 @@ rules:
   - patch
   - update
   - watch
-# TODO [danehans]: Unsure why the following rules are needed: https://github.com/kubernetes-sigs/gateway-api-inference-extension/issues/224
-- apiGroups:
-  - authentication.k8s.io
-  resources:
-  - tokenreviews
-  verbs:
-  - create
-- apiGroups:
-  - authorization.k8s.io
-  resources:
-  - subjectaccessreviews
-  verbs:
-  - create

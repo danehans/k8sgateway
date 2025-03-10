@@ -21,6 +21,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/kubernetes/scheme"
+	infextv1a2 "sigs.k8s.io/gateway-api-inference-extension/api/v1alpha2"
+
 	gwv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	"github.com/kgateway-dev/kgateway/v2/api/v1alpha1"
@@ -45,6 +49,25 @@ type TestCase struct {
 type ActualTestResult struct {
 	Proxy      *irtranslator.TranslationResult
 	ReportsMap reports.ReportMap
+}
+
+func init() {
+	// So that typed creation doesn't fail
+	addInferencePoolToCoreScheme()
+
+	// We must register the InferencePool types in FakeIstioScheme before creating
+	// the fake client, or the dynamic client will panic on list/watch.
+	utilruntime.Must(infextv1a2.AddToScheme(kubeclient.FakeIstioScheme))
+}
+
+// addInferencePoolToCoreScheme ensures the kube typed client sees InferencePool.
+func addInferencePoolToCoreScheme() {
+	scheme.Scheme.AddKnownTypes(
+		infextv1a2.GroupVersion,
+		&infextv1a2.InferencePool{},
+		&infextv1a2.InferencePoolList{},
+	)
+	metav1.AddToGroupVersion(scheme.Scheme, infextv1a2.GroupVersion)
 }
 
 func CompareProxy(expectedFile string, actualProxy *irtranslator.TranslationResult) (string, error) {
@@ -137,8 +160,7 @@ func (tp testBackendPlugin) GetBackendForRefPlugin(kctx krt.HandlerContext, key 
 
 func (tc TestCase) Run(t test.Failer, ctx context.Context) (map[types.NamespacedName]ActualTestResult, error) {
 	var (
-		anyObjs []runtime.Object
-		ourObjs []runtime.Object
+		anyObjs, ourObjs, infExtObjs []runtime.Object		
 	)
 	for _, file := range tc.InputFiles {
 		objs, err := testutils.LoadFromFiles(ctx, file)
@@ -149,7 +171,8 @@ func (tc TestCase) Run(t test.Failer, ctx context.Context) (map[types.Namespaced
 			switch obj := objs[i].(type) {
 			case *gwv1.Gateway:
 				anyObjs = append(anyObjs, obj)
-
+			case *infextv1a2.InferencePool:
+				infExtObjs= append(infExtObjs, obj)
 			default:
 				apiversion := reflect.ValueOf(obj).Elem().FieldByName("TypeMeta").FieldByName("APIVersion").String()
 				if strings.Contains(apiversion, v1alpha1.GroupName) {
@@ -171,6 +194,11 @@ func (tc TestCase) Run(t test.Failer, ctx context.Context) (map[types.Namespaced
 		gvr.Pod,
 		gvr.TCPRoute,
 		gvr.TLSRoute,
+		schema.GroupVersionResource{
+			Group:    infextv1a2.GroupVersion.Group,
+			Version:  infextv1a2.GroupVersion.Version,
+			Resource: "inferencepools",
+		},
 	} {
 		clienttest.MakeCRD(t, cli, crd)
 	}

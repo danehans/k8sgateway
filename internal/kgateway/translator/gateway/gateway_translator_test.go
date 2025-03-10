@@ -385,6 +385,31 @@ var _ = DescribeTable("Basic GatewayTranslator Tests",
 			Name:      "example-gateway",
 		},
 	}),
+	Entry(
+		"http gateway with basic inferencepool backend",
+		translatorTestCase{
+			inputFile:  "inferencepool-backend/basic.yaml",
+			outputFile: "inferencepool-backend/basic-proxy.yaml",
+			gwNN: types.NamespacedName{
+				Namespace: "default",
+				Name:      "llm-gateway",
+			},
+			assertReports: func(gwNN types.NamespacedName, reportsMap reports.ReportMap) {
+				route := &gwv1.HTTPRoute{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "llm-route",
+						Namespace: "default",
+					},
+				}
+				routeStatus := reportsMap.BuildRouteStatus(context.TODO(), route, "")
+				Expect(routeStatus).NotTo(BeNil())
+				Expect(routeStatus.Parents).To(HaveLen(1))
+				resolvedRefs := meta.FindStatusCondition(routeStatus.Parents[0].Conditions, string(gwv1.RouteConditionResolvedRefs))
+				Expect(resolvedRefs).NotTo(BeNil())
+				Expect(resolvedRefs.Status).To(Equal(metav1.ConditionTrue))
+				Expect(resolvedRefs.Reason).To(Equal(string(gwv1.RouteReasonResolvedRefs)))
+			},
+		}),
 )
 
 var _ = DescribeTable("Route Delegation translator",

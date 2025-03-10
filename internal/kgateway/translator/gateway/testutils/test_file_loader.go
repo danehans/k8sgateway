@@ -14,6 +14,8 @@ import (
 	"github.com/rotisserie/eris"
 	"google.golang.org/protobuf/proto"
 
+	infextv1a2 "sigs.k8s.io/gateway-api-inference-extension/api/v1alpha2"
+
 	"github.com/kgateway-dev/kgateway/v2/api/v1alpha1"
 	"github.com/kgateway-dev/kgateway/v2/internal/kgateway/translator/irtranslator"
 	"github.com/kgateway-dev/kgateway/v2/pkg/utils/protoutils"
@@ -89,6 +91,11 @@ func parseFile(ctx context.Context, filename string) ([]runtime.Object, error) {
 	if err := v1alpha1.Install(scheme); err != nil {
 		return nil, err
 	}
+
+	if err := infextv1a2.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+
 	file, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
