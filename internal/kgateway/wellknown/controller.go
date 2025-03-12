@@ -17,4 +17,8 @@ const (
 	// DefaultGatewayParametersName is the name of the GatewayParameters which is attached by
 	// parametersRef to the GatewayClass.
 	DefaultGatewayParametersName = "kgateway"
+
+	// InferencePoolFinalizer is the InferencePool finalizer name to ensure cluster-scoped
+	// objects are cleaned up.
+	InferencePoolFinalizer = "kgateway/inferencepool-cleanup"
 )
