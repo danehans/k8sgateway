@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	// grpcPort is the default port number for a gRPC service.
-	grpcPort = 9002
+	// GRPCport is the default port number for a gRPC service.
+	GRPCport = 9002
 )
 
 // Service defines the internal representation of a Service resource.
