@@ -549,21 +549,11 @@ func (d *Deployer) DeployObjs(ctx context.Context, objs []client.Object) error {
 	return nil
 }
 
-// EnsureFinalizer adds the InferencePool finalizer to the given pool if it’s not already present.
-// The deployer requires InferencePools to be finalized to remove cluster-scoped resources.
-// This can be removed if the endpoint picker no longer requires cluster-scoped resources.
-// See: https://github.com/kubernetes-sigs/gateway-api-inference-extension/issues/224 for details.
-func (d *Deployer) EnsureFinalizer(ctx context.Context, pool *infextv1a2.InferencePool) error {
-	if slices.Contains(pool.Finalizers, wellknown.InferencePoolFinalizer) {
-		return nil
-	}
-	pool.Finalizers = append(pool.Finalizers, wellknown.InferencePoolFinalizer)
-	return d.cli.Update(ctx, pool)
-}
-
 // CleanupClusterScopedResources deletes the ClusterRole and ClusterRoleBinding for the given pool.
 // TODO [danehans]: EPP should use role and rolebinding RBAC: https://github.com/kubernetes-sigs/gateway-api-inference-extension/issues/224
 func (d *Deployer) CleanupClusterScopedResources(ctx context.Context, pool *infextv1a2.InferencePool) error {
+	logger := log.FromContext(ctx)
+
 	// The same release name as in the Helm template.
 	releaseName := fmt.Sprintf("%s-endpoint-picker", pool.Name)
 
@@ -573,6 +563,8 @@ func (d *Deployer) CleanupClusterScopedResources(ctx context.Context, pool *infe
 		if err := d.cli.Delete(ctx, &cr); err != nil {
 			return fmt.Errorf("failed to delete ClusterRole %s: %w", releaseName, err)
 		}
+	} else {
+		logger.Info("clusterrole does not exist; skipping deletion of resource", "name", releaseName)
 	}
 
 	// Delete the ClusterRoleBinding.
@@ -581,6 +573,8 @@ func (d *Deployer) CleanupClusterScopedResources(ctx context.Context, pool *infe
 		if err := d.cli.Delete(ctx, &crb); err != nil {
 			return fmt.Errorf("failed to delete ClusterRoleBinding %s: %w", releaseName, err)
 		}
+	} else {
+		logger.Info("clusterrolebinding does not exist; skipping deletion of resource", "name", releaseName)
 	}
 
 	return nil

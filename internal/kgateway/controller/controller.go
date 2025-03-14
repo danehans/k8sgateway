@@ -66,14 +66,13 @@ func NewBaseGatewayController(ctx context.Context, cfg GatewayConfig) error {
 }
 
 type InferencePoolConfig struct {
-	Mgr            manager.Manager
-	ControllerName string
-	InferenceExt   *deployer.InferenceExtInfo
+	Mgr          manager.Manager
+	InferenceExt *deployer.InferenceExtInfo
 }
 
 func NewBaseInferencePoolController(ctx context.Context, poolCfg *InferencePoolConfig, gwCfg *GatewayConfig) error {
 	log := log.FromContext(ctx)
-	log.V(5).Info("starting inferencepool controller", "controllerName", poolCfg.ControllerName)
+	log.V(5).Info("starting inferencepool controller", "controllerName", gwCfg.ControllerName)
 
 	// TODO [danehans]: Make GatewayConfig optional since Gateway and InferencePool are independent controllers.
 	controllerBuilder := &controllerBuilder{
@@ -247,12 +246,7 @@ func (c *controllerBuilder) watchInferencePool(ctx context.Context) error {
 	}
 
 	buildr := ctrl.NewControllerManagedBy(c.cfg.Mgr).
-		For(&infextv1a2.InferencePool{}, builder.WithPredicates(
-			predicate.Or(
-				predicate.AnnotationChangedPredicate{},
-				predicate.GenerationChangedPredicate{},
-			),
-		)).
+		For(&infextv1a2.InferencePool{}).
 		// Watch HTTPRoute objects so that changes there trigger a reconcile for referenced InferencePools.
 		Watches(&apiv1.HTTPRoute{}, handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
 			route, ok := obj.(*apiv1.HTTPRoute)
@@ -339,9 +333,10 @@ func (c *controllerBuilder) watchInferencePool(ctx context.Context) error {
 	}
 
 	r := &inferencePoolReconciler{
-		cli:      c.cfg.Mgr.GetClient(),
-		scheme:   c.cfg.Mgr.GetScheme(),
-		deployer: d,
+		cli:            c.cfg.Mgr.GetClient(),
+		scheme:         c.cfg.Mgr.GetScheme(),
+		controllerName: c.cfg.ControllerName,
+		deployer:       d,
 	}
 	if err := buildr.Complete(r); err != nil {
 		return err
